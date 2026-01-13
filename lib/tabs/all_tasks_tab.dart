@@ -19,7 +19,7 @@ class AllTasksTab extends StatelessWidget {
       itemBuilder: (context, index) {
         return TaskTile(
           task: tasks[index],
-          onToggle: () => onToggle(tasks[index]),
+          onToggle: onToggle,
         );
       },
     );

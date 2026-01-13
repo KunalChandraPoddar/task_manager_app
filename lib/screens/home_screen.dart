@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import '../models/task_model.dart';
-import '../services/api_service.dart';
+import '../services/task_storage_service.dart';
 import '../tabs/all_tasks_tab.dart';
 import '../tabs/completed_tasks_tab.dart';
+import '../tabs/add_task_tab.dart';
 import '../tabs/stats_tab.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -24,19 +25,22 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadTasks() async {
-    _tasks = await ApiService.fetchTasks();
+    _tasks = await TaskStorageService.loadTasks();
     setState(() => _loading = false);
+  }
+
+  void _addTask(Task task) async {
+    setState(() {
+      _tasks.add(task);
+    });
+    await TaskStorageService.saveTasks(_tasks);
   }
 
   void _toggleTask(Task task) async {
     setState(() {
       task.completed = !task.completed;
     });
-
-    await ApiService.updateTaskCompletion(
-      task.id,
-      task.completed,
-    );
+    await TaskStorageService.saveTasks(_tasks);
   }
 
   Color _getSelectedColor(int index) {
@@ -46,6 +50,8 @@ class _HomeScreenState extends State<HomeScreen> {
       case 1:
         return Colors.green;
       case 2:
+        return Colors.purple;
+      case 3:
         return Colors.orange;
       default:
         return Colors.blue;
@@ -67,6 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           AllTasksTab(tasks: _tasks, onToggle: _toggleTask),
           CompletedTasksTab(tasks: _tasks, onToggle: _toggleTask),
+          AddTaskTab(onAddTask: _addTask),
           StatsTab(tasks: _tasks),
         ],
       ),
@@ -76,18 +83,12 @@ class _HomeScreenState extends State<HomeScreen> {
         unselectedItemColor: Colors.grey,
         onTap: (index) => setState(() => _currentIndex = index),
         items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.list), label: 'All'),
           BottomNavigationBarItem(
-            icon: Icon(Icons.list),
-            label: 'All',
-          ),
+              icon: Icon(Icons.check_circle), label: 'Completed'),
+          BottomNavigationBarItem(icon: Icon(Icons.add), label: 'Add'),
           BottomNavigationBarItem(
-            icon: Icon(Icons.check_circle),
-            label: 'Completed',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart),
-            label: 'Stats',
-          ),
+              icon: Icon(Icons.bar_chart), label: 'Stats'),
         ],
       ),
     );

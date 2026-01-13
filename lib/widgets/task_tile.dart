@@ -3,7 +3,7 @@ import '../models/task_model.dart';
 
 class TaskTile extends StatelessWidget {
   final Task task;
-  final VoidCallback onToggle;
+  final Function(Task) onToggle;
 
   const TaskTile({
     super.key,
@@ -17,15 +17,15 @@ class TaskTile extends StatelessWidget {
       title: Text(
         task.title,
         style: TextStyle(
-          color: task.completed ? Colors.green : Colors.black,
           decoration:
               task.completed ? TextDecoration.lineThrough : null,
         ),
       ),
+      subtitle: Text(task.dateTime.toString()),
       trailing: Checkbox(
         value: task.completed,
         activeColor: Colors.green,
-        onChanged: (_) => onToggle(),
+        onChanged: (_) => onToggle(task),
       ),
     );
   }
