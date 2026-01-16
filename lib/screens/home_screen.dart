@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:task_manager_app/controllers/notification_controller.dart';
+import 'package:task_manager_app/services/storage_service.dart';
 import '../models/task_model.dart';
-import '../services/task_storage_service.dart';
+import '../services/connectivity_service.dart';
 import '../tabs/all_tasks_tab.dart';
 import '../tabs/completed_tasks_tab.dart';
 import '../tabs/add_task_tab.dart';
 import '../tabs/stats_tab.dart';
 import 'dart:async';
-import '../services/notification_service.dart';
-import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,80 +17,141 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  IconData _connectionIcon = Icons.wifi;
+  Color _connectionColor = Colors.green;
+  Timer? _timer;
+
   int _currentIndex = 0;
   List<Task> _tasks = [];
   bool _loading = true;
-  Timer? _timer;
 
+  late final ConnectivityService _connectivityService;
 
   @override
-void initState() {
-  super.initState();
-  _loadTasks();
-  _startNotificationChecker();
-}
-String formatDateTime12(DateTime dateTime) {
-  return DateFormat('dd MMM yyyy, hh:mm a').format(dateTime);
-}
+  void initState() {
+    super.initState();
+    _connectivityService = ConnectivityService();
+    _loadTasks();
+    _listenConnectivity();
+    _startNotificationChecker();
+  }
 
+  void _startNotificationChecker() {
+  _timer?.cancel();
 
-void _startNotificationChecker() {
-  _timer = Timer.periodic(const Duration(minutes: 1), (_) {
+  _timer = Timer.periodic(const Duration(seconds: 30), (_) {
     final now = DateTime.now();
 
     for (final task in _tasks) {
       if (!task.completed &&
-          now.year == task.dateTime.year &&
-          now.month == task.dateTime.month &&
-          now.day == task.dateTime.day &&
-          now.hour == task.dateTime.hour &&
-          now.minute == task.dateTime.minute) {
-        NotificationService.showNotification(task.title);
+          !task.notified &&
+          now.isAfter(task.dateTime)) {
+        NotificationController.showTaskNotification(task);
+
+        setState(() {
+          task.notified = true;
+        });
+
+        StorageService.saveTasks(_tasks);
       }
     }
   });
 }
 
-@override
+  void _listenConnectivity() {
+    _connectivityService.stream.listen((status) {
+      String message;
+
+      switch (status) {
+        case ConnectionStatus.wifiOn:
+          message = 'Wi-Fi turned ON';
+          _connectionIcon = Icons.wifi;
+          _connectionColor = Colors.green;
+          break;
+
+        case ConnectionStatus.wifiOff:
+          message = 'Wi-Fi turned OFF';
+          _connectionIcon = Icons.wifi_off;
+          _connectionColor = Colors.red;
+          break;
+
+        case ConnectionStatus.mobileOn:
+          message = 'Mobile data turned ON';
+          _connectionIcon = Icons.signal_cellular_alt;
+          _connectionColor = Colors.green;
+          break;
+
+        case ConnectionStatus.mobileOff:
+          message = 'Mobile data turned OFF';
+          _connectionIcon = Icons.signal_cellular_off;
+          _connectionColor = Colors.red;
+          break;
+
+        case ConnectionStatus.offline:
+          message = 'No internet connection';
+          _connectionIcon = Icons.cloud_off;
+          _connectionColor = Colors.red;
+          break;
+      }
+
+      setState(() {});
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: _connectionColor,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    });
+  }
+
+  Future<void> _loadTasks() async {
+    try {
+      final tasks = await StorageService.loadTasks();
+      setState(() {
+        _tasks = tasks;
+        _loading = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading tasks: $e');
+      setState(() {
+        _tasks = [];
+        _loading = false;
+      });
+    }
+  }
+
+  @override
 void dispose() {
   _timer?.cancel();
+  _connectivityService.dispose();
   super.dispose();
 }
 
 
-  Future<void> _loadTasks() async {
-    _tasks = await TaskStorageService.loadTasks();
-    setState(() => _loading = false);
-  }
-
   void _addTask(Task task) async {
     setState(() {
       _tasks.add(task);
+      _currentIndex = 0;
     });
-    await TaskStorageService.saveTasks(_tasks);
+    await StorageService.saveTasks(_tasks);
   }
-
 
   void _toggleTask(Task task) async {
-  final now = DateTime.now();
+    if (DateTime.now().isBefore(task.dateTime)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cannot complete task before scheduled time'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
-  if (task.dateTime.isAfter(now)) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("You can't complete a task before its scheduled time"),
-        duration: Duration(seconds: 2),
-      ),
-    );
-    return;
+    setState(() => task.completed = !task.completed);
+    await StorageService.saveTasks(_tasks);
   }
-
-  setState(() {
-    task.completed = !task.completed;
-  });
-
-  await TaskStorageService.saveTasks(_tasks);
-}
-
 
   Color _getSelectedColor(int index) {
     switch (index) {
@@ -107,16 +168,24 @@ void dispose() {
     }
   }
 
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Task Manager')),
+      appBar: AppBar(
+        title: const Text('Task Manager'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: Icon(_connectionIcon, color: _connectionColor),
+          ),
+        ],
+      ),
+
       body: IndexedStack(
         index: _currentIndex,
         children: [
@@ -134,10 +203,11 @@ void dispose() {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.list), label: 'All'),
           BottomNavigationBarItem(
-              icon: Icon(Icons.check_circle), label: 'Completed'),
+            icon: Icon(Icons.check_circle),
+            label: 'Completed',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.add), label: 'Add'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.bar_chart), label: 'Stats'),
+          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Stats'),
         ],
       ),
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:task_manager_app/screens/connectivity_screen.dart';
 import 'screens/home_screen.dart';
 
 class TaskManagerApp extends StatelessWidget {
@@ -6,10 +7,15 @@ class TaskManagerApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: HomeScreen(),
+    return MaterialApp(
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: false),
+          child: child!,
+        );
+      },
+      home: const HomeScreen(),
+      // home: const ConnectivityScreen(),
     );
   }
 }
-

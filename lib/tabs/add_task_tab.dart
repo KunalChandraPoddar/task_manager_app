@@ -16,17 +16,29 @@ class _AddTaskTabState extends State<AddTaskTab> {
   TimeOfDay? _selectedTime;
 
   void _submit() {
-    if (_controller.text.trim().isEmpty) {
-      _showError('Please enter a task title');
+    if (_controller.text.trim().isEmpty ||
+        _selectedDate == null ||
+        _selectedTime == null) {
+      _showError('All fields are required');
       return;
     }
-    if (_selectedDate == null) {
-      _showError('Please select a date');
-      return;
-    }
-    if (_selectedTime == null) {
-      _showError('Please select a time');
-      return;
+
+    Future<void> _pickTime(BuildContext context) async {
+      final TimeOfDay? picked = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.now(),
+
+        builder: (context, child) {
+          return MediaQuery(
+            data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: false),
+            child: child!,
+          );
+        },
+      );
+
+      if (picked != null) {
+        setState(() => _selectedTime = picked);
+      }
     }
 
     final dateTime = DateTime(
@@ -39,7 +51,7 @@ class _AddTaskTabState extends State<AddTaskTab> {
 
     widget.onAddTask(
       Task(
-        id: DateTime.now().toString(),
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
         title: _controller.text.trim(),
         dateTime: dateTime,
       ),
@@ -105,13 +117,6 @@ class _AddTaskTabState extends State<AddTaskTab> {
               final time = await showTimePicker(
                 context: context,
                 initialTime: TimeOfDay.now(),
-                builder: (context, child) {
-                  return MediaQuery(
-                    data: MediaQuery.of(context)
-                        .copyWith(alwaysUse24HourFormat: false),
-                    child: child!,
-                  );
-                },
               );
               if (time != null) setState(() => _selectedTime = time);
             },
@@ -122,12 +127,20 @@ class _AddTaskTabState extends State<AddTaskTab> {
             ),
           ),
 
-          const SizedBox(height: 100),
+          const Spacer(),
 
           ElevatedButton(
             onPressed: _submit,
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-            child: const Text('Add Task', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text(
+              'Add Task',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
